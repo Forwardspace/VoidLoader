@@ -11,18 +11,32 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 	InitializeLib(ImageHandle, SystemTable);
 #endif
 
+	SystemTable->ConOut->ClearScreen(SystemTable->ConOut);
+
 	Print(L"\nVoidLoader, bringing you the best in VoidOS loading since 2020!\n\nInitializing...");
 	
 
 	if (!initGraphics(SystemTable)) {
+		for (;;);
 		return -1;
 	}
-
-	if (!loadKernel(SystemTable, ImageHandle)) {
-		return -1;
+	else {
+		Print(L"\nGraphics OK");
 	}
 
-	for (;;);
+	if (!loadKernel(ImageHandle, SystemTable)) {
+		for (;;);
+		return -1;
+	}
+	else {
+		Print(L"\nKernel OK");
+	}
+
+	Print(L"\n\nTransferring control to kernel...\n");
+
+	SystemTable->BootServices->ExitBootServices(ImageHandle, 0);
+
+	transferControl();
 
 	return -1;	//We really shouldn't ever return back to the bootloader
 }
