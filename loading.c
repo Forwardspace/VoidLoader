@@ -1,7 +1,43 @@
 #include "loading.h"
 
-CHAR16* kernelFilename = L"voidos.bin";
-const void* kernelAddress = (const void*)0xC0000000;
+CHAR16* kernelFilename = L"voidos";
+const void* kernelAddress = (const void*)0x100000000;
+
+void memcpycustom(void* src, void* dest, uint64_t num) {
+	for (int i = 0; i < num; i++) {
+		*((char*)dest + i) = *((char*)src + i);
+	}
+}
+
+void memsetcustom0(void* dest, uint64_t size) {
+	for (int i = 0; i < size; i++) {
+		*((char*)dest) = 0;
+	}
+}
+
+bool loadElfMinimal(void* start, void* loadAddress) {
+	//Assume that the elf does not need to be relocated
+
+	Elf64_Ehdr hdr = *(Elf64_Ehdr*)start;
+
+	uint32_t numSections = hdr.e_shnum;
+
+	Elf64_Shdr* sHeader = (Elf64_Shdr*)((char*)start + hdr.e_shoff);
+
+	char* address = kernelAddress;
+
+	//Figure out which sections need to be copied to memory and copy them
+	for (int i = 1; i < numSections; i++) {
+		memsetcustom0(address, sHeader[i].sh_size);
+		if (sHeader[i].sh_type != SHT_NOBITS) {
+			memcpycustom((char*)start + sHeader[i].sh_offset, address, sHeader[i].sh_size);
+		}
+
+		address += sHeader[i].sh_size;
+	}
+
+	return true;
+}
 
 bool loadKernel(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable) {
 	EFI_LOADED_IMAGE_PROTOCOL* lip = NULL;
@@ -57,9 +93,21 @@ bool loadKernel(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable) {
 
 	//Actually read the kernel
 	//Hope nothing is at this address
-	kernel->Read(kernel, fInfo.FileSize + 1, kernelAddress);
+	void* tempAddress;
+	SystemTable->BootServices->AllocatePages(AllocateAnyPages, EfiLoaderData, 8196, &tempAddress);
 
-	return true;
+	//Allocate 2GB space for the kernel for later
+	//SystemTable->BootServices->AllocatePages(AllocateAddress, Efi, 1024 * 1024 / 2, kernelAddress);
+
+	UINTN bufferSize = fInfo.FileSize;
+
+	if (kernel->Read(kernel, &bufferSize, tempAddress) != EFI_SUCCESS) {
+		Print(L"\nSorry, critical error: unable to read kernel file (kernel->Read(...) != EFI_SUCCESS)");
+		return false;
+	}
+
+	//But wait, this is just the elf *file*, load the actual code now
+	return loadElfMinimal(tempAddress, kernelAddress);
 }
 
 void transferControl() {

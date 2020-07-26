@@ -17,6 +17,7 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 	
 
 	if (!initGraphics(SystemTable)) {
+		Print(L"(Error in initGraphics(...))");
 		for (;;);
 		return -1;
 	}
@@ -25,6 +26,7 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 	}
 
 	if (!loadKernel(ImageHandle, SystemTable)) {
+		Print(L"(Error in loadKernel(...))");
 		for (;;);
 		return -1;
 	}
